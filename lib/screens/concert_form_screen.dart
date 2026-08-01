@@ -32,7 +32,9 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
     final c = widget.concert;
     date = c?.date ?? widget.initialDate;
     final parts = (c?.time ?? '23:00').split(':');
-    time = TimeOfDay(hour: int.tryParse(parts[0]) ?? 23, minute: int.tryParse(parts[1]) ?? 0);
+    time = TimeOfDay(
+        hour: int.tryParse(parts[0]) ?? 23,
+        minute: int.tryParse(parts[1]) ?? 0);
     place = TextEditingController(text: c?.place ?? '');
     price = TextEditingController(text: c?.price?.toString() ?? '');
     comments = TextEditingController(text: c?.comments ?? '');
@@ -41,7 +43,9 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
 
   @override
   void dispose() {
-    place.dispose(); price.dispose(); comments.dispose();
+    place.dispose();
+    price.dispose();
+    comments.dispose();
     super.dispose();
   }
 
@@ -62,6 +66,8 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
   }
 
   void save() {
+    debugPrint(
+        '[ConcertFormScreen] Validando ${widget.concert == null ? 'creación' : 'edición'}');
     if (place.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Indica el lugar del concierto')),
@@ -72,12 +78,15 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
     final concert = Concert(
       id: widget.concert?.id ?? widget.repository.newId(),
       date: date,
-      time: '${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}',
+      time:
+          '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
       place: place.text.trim(),
       price: p,
       comments: comments.text.trim(),
       status: status,
     );
+    debugPrint(
+        '[ConcertFormScreen] Devolviendo concierto ${concert.id} al llamador');
     Navigator.pop(context, concert);
   }
 
@@ -85,7 +94,8 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
   Widget build(BuildContext context) {
     final editing = widget.concert != null;
     return Scaffold(
-      appBar: AppBar(title: Text(editing ? 'Editar concierto' : 'Nuevo concierto')),
+      appBar:
+          AppBar(title: Text(editing ? 'Editar concierto' : 'Nuevo concierto')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -101,13 +111,16 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
           ),
           const SizedBox(height: 14),
           Row(children: [
-            Expanded(child: OutlinedButton.icon(
+            Expanded(
+                child: OutlinedButton.icon(
               onPressed: pickDate,
               icon: const Icon(Icons.calendar_month),
-              label: Text('${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}'),
+              label: Text(
+                  '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}'),
             )),
             const SizedBox(width: 10),
-            Expanded(child: OutlinedButton.icon(
+            Expanded(
+                child: OutlinedButton.icon(
               onPressed: pickTime,
               icon: const Icon(Icons.schedule),
               label: Text(time.format(context)),
@@ -125,18 +138,22 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<ConcertStatus>(
-            value: status,
+            initialValue: status,
             decoration: const InputDecoration(
               labelText: 'Estado',
               prefixIcon: Icon(Icons.flag_outlined),
               border: OutlineInputBorder(),
             ),
             items: const [
-              DropdownMenuItem(value: ConcertStatus.pending, child: Text('Pendiente')),
-              DropdownMenuItem(value: ConcertStatus.confirmed, child: Text('Confirmado')),
-              DropdownMenuItem(value: ConcertStatus.cancelled, child: Text('Cancelado')),
+              DropdownMenuItem(
+                  value: ConcertStatus.pending, child: Text('Pendiente')),
+              DropdownMenuItem(
+                  value: ConcertStatus.confirmed, child: Text('Confirmado')),
+              DropdownMenuItem(
+                  value: ConcertStatus.cancelled, child: Text('Cancelado')),
             ],
-            onChanged: (v) => setState(() => status = v ?? ConcertStatus.pending),
+            onChanged: (v) =>
+                setState(() => status = v ?? ConcertStatus.pending),
           ),
           const SizedBox(height: 14),
           TextField(

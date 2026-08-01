@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -56,7 +53,6 @@ class DefaultFirebaseOptions {
     projectId: 'va-de-rumba',
     storageBucket: 'va-de-rumba.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD-EO6zKiTdlyRhlj5F4j_a4tRj_Wxt0KQ',
     appId: '1:353945851143:ios:3f8494591bdba4666c21a2',
@@ -64,5 +60,15 @@ class DefaultFirebaseOptions {
     projectId: 'va-de-rumba',
     storageBucket: 'va-de-rumba.firebasestorage.app',
     iosBundleId: 'com.vaderumba.gestion',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyC0DrWRG4JLWHSX2vk5zat6eVxxKs8GfvY',
+    appId: '1:353945851143:web:7c27b29224e687476c21a2',
+    messagingSenderId: '353945851143',
+    projectId: 'va-de-rumba',
+    authDomain: 'va-de-rumba.firebaseapp.com',
+    storageBucket: 'va-de-rumba.firebasestorage.app',
+    measurementId: 'G-0DXD34H6CZ',
   );
 }

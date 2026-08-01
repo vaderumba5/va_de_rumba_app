@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'calendar_screen.dart';
+import 'main_screen.dart';
+import '../widgets/logo.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -20,7 +21,7 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return const CalendarScreen();
+          return const MainScreen();
         }
 
         return const LoginScreen();
@@ -104,19 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 children: [
-                  const Icon(
-                    Icons.music_note,
-                    size: 72,
-                    color: Color(0xFF7B1FA2),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'VA DE RUMBA',
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  const Logo(width: 160, showWordmark: true),
                   const SizedBox(height: 8),
                   const Text(
                     'Gestión de conciertos',
@@ -125,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
                   TextField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
