@@ -9,6 +9,7 @@ enum AppSection {
   dashboard,
   calendar,
   concerts,
+  webPublishing,
   repertoire,
   finances,
   documents,
@@ -77,6 +78,8 @@ class SideMenu extends StatelessWidget {
                 'Calendario'),
             const _MenuItem(
                 AppSection.concerts, Icons.mic_none_rounded, 'Conciertos'),
+            const _MenuItem(AppSection.webPublishing, Icons.public_rounded,
+                'Publicación web'),
             const _MenuItem(
                 AppSection.repertoire, Icons.queue_music_rounded, 'Repertorio'),
             const SizedBox(height: 22),

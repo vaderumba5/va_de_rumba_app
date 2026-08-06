@@ -4,6 +4,7 @@ import '../widgets/app_layout.dart';
 import '../widgets/side_menu.dart';
 import 'calendar_screen.dart';
 import 'concerts_screen.dart';
+import 'public_concerts_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'fund_screen.dart';
@@ -74,6 +75,12 @@ class _MainScreenState extends State<MainScreen> {
       case AppSection.concerts:
         return const _Page(
             'Conciertos', 'Agenda y gestión de actuaciones', ConcertsScreen());
+      case AppSection.webPublishing:
+        return const _Page(
+          'Publicación web',
+          'Selecciona qué conciertos aparecen en vaderumba.es',
+          PublicConcertsScreen(),
+        );
       case AppSection.repertoire:
         return const _Page('Repertorio', 'Canciones y repertorios de directo',
             RepertoireScreen());
@@ -97,6 +104,7 @@ extension on AppSection {
         AppSection.dashboard => AppModules.dashboard,
         AppSection.calendar => AppModules.calendar,
         AppSection.concerts => AppModules.concerts,
+        AppSection.webPublishing => AppModules.concerts,
         AppSection.repertoire => AppModules.repertoire,
         AppSection.finances => AppModules.fund,
         AppSection.documents => AppModules.documents,
