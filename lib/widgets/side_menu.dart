@@ -1,15 +1,19 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'logo.dart';
+import 'user_avatar.dart';
+import '../core/app_theme.dart';
 
 enum AppSection {
   dashboard,
   calendar,
   concerts,
-  clients,
+  repertoire,
   finances,
   documents,
   settings,
+  users,
 }
 
 class SideMenu extends StatelessWidget {
@@ -18,11 +22,13 @@ class SideMenu extends StatelessWidget {
     required this.currentSection,
     required this.onSectionSelected,
     this.compact = false,
+    required this.allowedSections,
   });
 
   final AppSection currentSection;
   final ValueChanged<AppSection> onSectionSelected;
   final bool compact;
+  final List<AppSection> allowedSections;
 
   static const double width = 276;
 
@@ -31,8 +37,8 @@ class SideMenu extends StatelessWidget {
     return Container(
       width: compact ? null : width,
       decoration: const BoxDecoration(
-        color: Color(0xFF171621),
-        border: Border(right: BorderSide(color: Color(0xFF2A2937))),
+        color: AppColors.sidebarBackground,
+        border: Border(right: BorderSide(color: AppColors.divider)),
       ),
       child: SafeArea(
         child: Column(
@@ -50,14 +56,14 @@ class SideMenu extends StatelessWidget {
                       children: [
                         Text('VA DE RUMBA',
                             style: TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.1)),
                         SizedBox(height: 2),
                         Text('Gestión interna',
                             style: TextStyle(
-                                fontSize: 12, color: Color(0xFFA6A4B5))),
+                                fontSize: 12, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
@@ -66,23 +72,27 @@ class SideMenu extends StatelessWidget {
             ),
             const _MenuLabel('GENERAL'),
             const _MenuItem(
-                AppSection.dashboard, Icons.home_outlined, 'Dashboard'),
+                AppSection.dashboard, Icons.home_outlined, 'Inicio'),
             const _MenuItem(AppSection.calendar, Icons.calendar_month_outlined,
                 'Calendario'),
             const _MenuItem(
                 AppSection.concerts, Icons.mic_none_rounded, 'Conciertos'),
+            const _MenuItem(
+                AppSection.repertoire, Icons.queue_music_rounded, 'Repertorio'),
             const SizedBox(height: 22),
             const _MenuLabel('GESTIÓN'),
             const _MenuItem(
-                AppSection.clients, Icons.groups_outlined, 'Clientes'),
-            const _MenuItem(AppSection.finances,
-                Icons.account_balance_wallet_outlined, 'Economía'),
+                AppSection.finances, Icons.savings_outlined, 'Fondo'),
             const _MenuItem(
                 AppSection.documents, Icons.description_outlined, 'Documentos'),
+            const _MenuItem(AppSection.users,
+                Icons.admin_panel_settings_outlined, 'Administración'),
             const Spacer(),
+            const _UserSummary(),
+            const SizedBox(height: 14),
             const Padding(
               padding: EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: Divider(height: 1, color: Color(0xFF343241)),
+              child: Divider(height: 1, color: AppColors.border),
             ),
             const _MenuItem(
                 AppSection.settings, Icons.settings_outlined, 'Ajustes'),
@@ -92,6 +102,9 @@ class SideMenu extends StatelessWidget {
             ),
           ].map((child) {
             if (child is _MenuItem) {
+              if (!allowedSections.contains(child.section)) {
+                return const SizedBox.shrink();
+              }
               return _menuButton(context, child);
             }
             return child;
@@ -106,7 +119,9 @@ class SideMenu extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
-        color: selected ? const Color(0xFF302C50) : Colors.transparent,
+        color: selected
+            ? AppColors.menuItemSelected
+            : AppColors.menuItemBackground,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -118,16 +133,17 @@ class SideMenu extends StatelessWidget {
                 Icon(item.icon,
                     size: 21,
                     color: selected
-                        ? const Color(0xFFAFA7FF)
-                        : const Color(0xFFA6A4B5)),
+                        ? AppColors.textPrimary
+                        : AppColors.iconSecondary),
                 const SizedBox(width: 12),
                 Text(item.label,
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight:
                             selected ? FontWeight.w700 : FontWeight.w500,
-                        color:
-                            selected ? Colors.white : const Color(0xFFD2D0DA))),
+                        color: selected
+                            ? AppColors.textPrimary
+                            : AppColors.navigationText)),
               ],
             ),
           ),
@@ -135,6 +151,57 @@ class SideMenu extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UserSummary extends StatelessWidget {
+  const _UserSummary();
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.userChanges(),
+        initialData: FirebaseAuth.instance.currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          final name = user?.displayName?.trim();
+          final email = user?.email ?? '';
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                const UserAvatar(size: 36, borderRadius: 11, showShadow: false),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name == null || name.isEmpty ? 'Mi cuenta' : name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
 }
 
 class _ConnectionFooter extends StatelessWidget {
@@ -147,7 +214,7 @@ class _ConnectionFooter extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: const BoxDecoration(
-              color: Color(0xFF57D6A5),
+              color: AppColors.successText,
               shape: BoxShape.circle,
               boxShadow: [BoxShadow(color: Color(0x9957D6A5), blurRadius: 7)],
             ),
@@ -155,13 +222,13 @@ class _ConnectionFooter extends StatelessWidget {
           const SizedBox(width: 8),
           const Expanded(
             child: Text('Firebase conectado',
-                style: TextStyle(fontSize: 11, color: Color(0xFFA6A4B5))),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ),
           const Text('v1.0.0',
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF777482))),
+                  color: AppColors.textMuted)),
         ],
       );
 }
@@ -178,7 +245,7 @@ class _MenuLabel extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1,
-                color: Color(0xFF898695))),
+                color: AppColors.textMuted)),
       );
 }
 

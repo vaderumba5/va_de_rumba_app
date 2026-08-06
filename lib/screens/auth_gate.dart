@@ -2,6 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'main_screen.dart';
+import '../providers/current_user_scope.dart';
+import '../services/user_repository.dart';
+import '../models/app_user.dart';
 import '../widgets/logo.dart';
 
 class AuthGate extends StatelessWidget {
@@ -21,13 +24,70 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return const MainScreen();
+          return _AuthorizedSession(authUser: snapshot.data!);
         }
 
         return const LoginScreen();
       },
     );
   }
+}
+
+class _AuthorizedSession extends StatefulWidget {
+  const _AuthorizedSession({required this.authUser});
+  final User authUser;
+
+  @override
+  State<_AuthorizedSession> createState() => _AuthorizedSessionState();
+}
+
+class _AuthorizedSessionState extends State<_AuthorizedSession> {
+  final _repository = UserRepository();
+  late Future<AppUser> _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = _repository.loadCurrent(widget.authUser);
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder(
+        future: _user,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                      'No se ha podido cargar tu perfil.\n${snapshot.error}'),
+                ),
+              ),
+            );
+          }
+          final appUser = snapshot.data!;
+          if (!appUser.isActive) {
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              await FirebaseAuth.instance.signOut();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text(
+                  'Tu cuenta está desactivada. Contacta con el administrador.',
+                ),
+              ));
+            });
+            return const Scaffold(
+                body: Center(child: CircularProgressIndicator()));
+          }
+          return CurrentUserScope(user: appUser, child: const MainScreen());
+        },
+      );
 }
 
 class LoginScreen extends StatefulWidget {
