@@ -29,7 +29,9 @@ class _MainScreenState extends State<MainScreen> {
     final user = CurrentUserScope.of(context);
     const authorization = CurrentUserScope.authorization;
     final allowed = AppSection.values
-        .where((section) => authorization.canViewModule(user, section.module))
+        .where((section) => section == AppSection.webPublishing
+            ? authorization.canManageModule(user, AppModules.concerts)
+            : authorization.canViewModule(user, section.module))
         .toList();
     if (!allowed.contains(_section) && allowed.isNotEmpty) {
       _section = allowed.first;
