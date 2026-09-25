@@ -41,7 +41,7 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
   late TextEditingController ticketLabel;
   late TextEditingController publicDescription;
   late TextEditingController posterUrl;
-  ConcertStatus status = ConcertStatus.pending;
+  ConcertStatus status = ConcertStatus.confirmed;
   late String setlistId;
   late bool isPublishedOnWeb;
   late bool featured;
@@ -63,7 +63,7 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
     contactPerson = TextEditingController(text: c?.contactPerson ?? '');
     contactPhone = TextEditingController(text: c?.contactPhone ?? '');
     address = TextEditingController(text: c?.address ?? '');
-    status = c?.status ?? ConcertStatus.pending;
+    status = c?.status ?? ConcertStatus.confirmed;
     setlistId = c?.setlistId ?? '';
     isPublishedOnWeb = c?.isPublishedOnWeb ?? false;
     featured = c?.featured ?? false;
@@ -121,7 +121,11 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
         '[ConcertFormScreen] Validando ${widget.concert == null ? 'creación' : 'edición'}');
     if (place.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Indica el lugar del concierto')),
+        SnackBar(
+          content: Text(widget.concert != null
+              ? 'Indica el lugar del concierto'
+              : 'Indica el título del evento'),
+        ),
       );
       return;
     }
@@ -185,11 +189,11 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
           TextField(
             controller: place,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Lugar',
-              hintText: 'Ej. Masía, sala, plaza...',
-              prefixIcon: Icon(Icons.location_on_outlined),
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: editing ? 'Lugar' : 'Título del evento',
+              hintText: editing ? 'Ej. Masía, sala, plaza...' : 'Nombre del evento',
+              prefixIcon: const Icon(Icons.location_on_outlined),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 14),
@@ -210,7 +214,7 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
             )),
           ]),
           const SizedBox(height: 14),
-          if (CurrentUserScope.authorization.canViewModule(
+          if (editing && CurrentUserScope.authorization.canViewModule(
             CurrentUserScope.of(context),
             AppModules.repertoire,
           )) ...[
@@ -266,21 +270,22 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
               prefixIcon: Icon(Icons.flag_outlined),
               border: OutlineInputBorder(),
             ),
-            items: const [
-              DropdownMenuItem(
+            items: [
+              const DropdownMenuItem(
                   value: ConcertStatus.pending, child: Text('Pendiente')),
-              DropdownMenuItem(
+              const DropdownMenuItem(
                   value: ConcertStatus.confirmed, child: Text('Confirmado')),
-              DropdownMenuItem(
-                  value: ConcertStatus.reserved, child: Text('Reservado')),
-              DropdownMenuItem(
+              if (editing)
+                const DropdownMenuItem(
+                    value: ConcertStatus.reserved, child: Text('Reservado')),
+              const DropdownMenuItem(
                   value: ConcertStatus.cancelled, child: Text('Cancelado')),
             ],
             onChanged: (v) =>
-                setState(() => status = v ?? ConcertStatus.pending),
+                setState(() => status = v ?? status),
           ),
           const SizedBox(height: 14),
-          if (CurrentUserScope.authorization.canManageModule(
+          if (editing && CurrentUserScope.authorization.canManageModule(
             CurrentUserScope.of(context),
             AppModules.concerts,
           )) ...[
@@ -415,19 +420,21 @@ class _ConcertFormScreenState extends State<ConcertFormScreen> {
               ),
             ],
           ],
-          TextField(
-            controller: comments,
-            maxLines: 5,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Comentarios',
-              hintText: 'Montaje, contacto, equipo, condiciones...',
-              prefixIcon: Icon(Icons.notes_outlined),
-              border: OutlineInputBorder(),
-              alignLabelWithHint: true,
+          if (editing) ...[
+            TextField(
+              controller: comments,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Comentarios',
+                hintText: 'Montaje, contacto, equipo, condiciones...',
+                prefixIcon: Icon(Icons.notes_outlined),
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
             ),
-          ),
-          const SizedBox(height: 28),
+            const SizedBox(height: 28),
+          ],
           const Text('Contacto y localización',
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
