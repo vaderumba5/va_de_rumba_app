@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn()
+        && request.auth.token.email == "grupovaderumba@gmail.com";
+    }
+
+    function canViewDocuments() {
+      return isOwner() || (
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isActive != false
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.permissions.documents
+          in ["view", "manage"]
+      );
+    }
+
+    function canManageDocuments() {
+      return isOwner() || (
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isActive != false
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.permissions.documents
+          == "manage"
+      );
+    }
+
+    function canManageConcerts() {
+      return isOwner() || (
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isActive != false
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.permissions.concerts
+          == "manage"
+      );
+    }
+
+    match /public_gallery/{slotId}/{fileName} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && canManageConcerts()
+        && (slotId.matches("slot-([1-9]|1[0-4])")
+          || slotId.matches("photo-[a-f0-9-]{36}"))
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches("image/(jpeg|png|webp)");
+      allow update: if false;
+      allow delete: if isSignedIn() && canManageConcerts()
+        && (slotId.matches("slot-([1-9]|1[0-4])")
+          || slotId.matches("photo-[a-f0-9-]{36}"));
+    }
+
+    match /profile_images/{userId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.size < 5 * 1024 * 1024
+          && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /group_documents/{documentId}/{fileName} {
+      allow read: if isSignedIn() && canViewDocuments();
+      allow create, update: if isSignedIn()
+          && canManageDocuments()
+          && request.resource.size < 20 * 1024 * 1024
+          && request.resource.contentType == 'application/pdf';
+      allow delete: if isSignedIn() && canManageDocuments();
+    }
+  }
+}

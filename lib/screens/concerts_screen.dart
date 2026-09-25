@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../core/app_theme.dart';
 import '../models/concert.dart';
 import '../services/firestore_concert_repository.dart';
+import '../utils/concert_actions.dart';
+import '../widgets/concert_detail_panel.dart';
 import 'concert_form_screen.dart';
+import '../models/app_permission.dart';
+import '../providers/current_user_scope.dart';
 
 enum _StatusFilter { all, confirmed, pending, cancelled }
 
@@ -25,6 +30,7 @@ class _ConcertsScreenState extends State<ConcertsScreen> {
   _StatusFilter _statusFilter = _StatusFilter.all;
   _TimeFilter _timeFilter = _TimeFilter.all;
   _SortOrder _sortOrder = _SortOrder.upcomingFirst;
+  Concert? _selectedConcert;
 
   @override
   void initState() {
@@ -120,9 +126,42 @@ class _ConcertsScreenState extends State<ConcertsScreen> {
     );
     if (!mounted || updated == null) return;
 
+    var updatePublicConcert = false;
+    if (concert.isPublishedOnWeb && updated.isPublishedOnWeb) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Este concierto está publicado en la web'),
+          content: const Text(
+            'Puedes guardar los cambios solo en la app o actualizar también '
+            'la publicación visible en vaderumba.es.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('Cancelar'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'app'),
+              child: const Text('Guardar solo en la app'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, 'web'),
+              child: const Text('Guardar y actualizar web'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || choice == 'cancel' || !mounted) return;
+      updatePublicConcert = choice == 'web';
+    }
+
     debugPrint('[ConcertsScreen] Inicio de edición: ${updated.id}');
     try {
-      await _repository.updateConcert(updated);
+      await _repository.updateConcert(
+        updated,
+        updatePublicConcert: updatePublicConcert,
+      );
       debugPrint('[ConcertsScreen] Edición completada: ${updated.id}');
     } catch (error, stackTrace) {
       debugPrint('[ConcertsScreen] Error al actualizar ${updated.id}: $error');
@@ -202,7 +241,11 @@ class _ConcertsScreenState extends State<ConcertsScreen> {
           if (snapshot.hasError) {
             return _LoadError(onRetry: _refresh);
           }
-          return _ConcertsContent(
+          final content = _ConcertsContent(
+            canManage: CurrentUserScope.authorization.canManageModule(
+              CurrentUserScope.of(context),
+              AppModules.concerts,
+            ),
             concerts: snapshot.data ?? const [],
             query: _searchController.text,
             searchController: _searchController,
@@ -217,7 +260,33 @@ class _ConcertsScreenState extends State<ConcertsScreen> {
             onCreate: _createConcert,
             onEdit: _editConcert,
             onDelete: _deleteConcert,
+            selectedConcert: _selectedConcert,
+            onSelect: (concert) => setState(() => _selectedConcert = concert),
           );
+          return LayoutBuilder(builder: (context, constraints) {
+            if (constraints.maxWidth < 1250) return content;
+            return Row(children: [
+              Expanded(child: content),
+              Container(
+                  width: 370,
+                  decoration: const BoxDecoration(
+                      border:
+                          Border(left: BorderSide(color: Color(0xFFE7E7E7)))),
+                  child: ConcertDetailPanel(
+                      concert: _selectedConcert,
+                      onClose: () => setState(() => _selectedConcert = null),
+                      onEdit: () {
+                        if (_selectedConcert != null) {
+                          _editConcert(_selectedConcert!);
+                        }
+                      },
+                      onDelete: () {
+                        if (_selectedConcert != null) {
+                          _deleteConcert(_selectedConcert!);
+                        }
+                      })),
+            ]);
+          });
         },
       );
 }
@@ -238,6 +307,9 @@ class _ConcertsContent extends StatelessWidget {
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
+    required this.selectedConcert,
+    required this.onSelect,
+    required this.canManage,
   });
 
   final List<Concert> concerts;
@@ -254,6 +326,9 @@ class _ConcertsContent extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<Concert> onEdit;
   final ValueChanged<Concert> onDelete;
+  final Concert? selectedConcert;
+  final ValueChanged<Concert> onSelect;
+  final bool canManage;
 
   @override
   Widget build(BuildContext context) {
@@ -284,21 +359,28 @@ class _ConcertsContent extends StatelessWidget {
                 onSortChanged: onSortChanged,
                 onReset: onReset,
                 onRefresh: onRefresh,
-                onCreate: onCreate,
+                onCreate: canManage ? onCreate : null,
               ),
               const SizedBox(height: 18),
               _Summary(concerts: concerts),
               const SizedBox(height: 20),
               if (concerts.isEmpty)
-                _EmptyList(onCreate: onCreate)
+                _EmptyList(onCreate: canManage ? onCreate : null)
               else if (filtered.isEmpty)
                 _NoResults(onReset: onReset)
               else if (desktop)
                 _ConcertsTable(
-                    concerts: filtered, onEdit: onEdit, onDelete: onDelete)
+                    concerts: filtered,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                    selectedConcert: selectedConcert,
+                    onSelect: onSelect)
               else
                 _ConcertCards(
-                    concerts: filtered, onEdit: onEdit, onDelete: onDelete),
+                    concerts: filtered,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                    onSelect: onSelect),
             ]),
           ),
         ),
@@ -379,7 +461,7 @@ class _Toolbar extends StatelessWidget {
   final ValueChanged<_SortOrder> onSortChanged;
   final VoidCallback onReset;
   final VoidCallback onRefresh;
-  final VoidCallback onCreate;
+  final VoidCallback? onCreate;
 
   @override
   Widget build(BuildContext context) =>
@@ -629,10 +711,16 @@ class _SummaryItem extends StatelessWidget {
 
 class _ConcertsTable extends StatelessWidget {
   const _ConcertsTable(
-      {required this.concerts, required this.onEdit, required this.onDelete});
+      {required this.concerts,
+      required this.onEdit,
+      required this.onDelete,
+      required this.selectedConcert,
+      required this.onSelect});
   final List<Concert> concerts;
   final ValueChanged<Concert> onEdit;
   final ValueChanged<Concert> onDelete;
+  final Concert? selectedConcert;
+  final ValueChanged<Concert> onSelect;
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
@@ -648,8 +736,12 @@ class _ConcertsTable extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
           const _TableHeader(),
-          ...concerts.map((concert) =>
-              _TableRow(concert: concert, onEdit: onEdit, onDelete: onDelete)),
+          ...concerts.map((concert) => _TableRow(
+              concert: concert,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              selected: selectedConcert?.id == concert.id,
+              onSelect: onSelect)),
         ]),
       );
 }
@@ -661,13 +753,15 @@ class _TableHeader extends StatelessWidget {
         color: const Color(0xFFFAF9FC),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
         child: const Row(children: [
-          _ColumnHeader('FECHA', flex: 12),
-          _ColumnHeader('HORA', flex: 8),
-          _ColumnHeader('LUGAR', flex: 20),
-          _ColumnHeader('ESTADO', flex: 13),
-          _ColumnHeader('PRECIO', flex: 12),
-          _ColumnHeader('COMENTARIOS', flex: 25),
-          _ColumnHeader('ACCIONES', flex: 10, align: TextAlign.right),
+          _ColumnHeader('FECHA', flex: 11),
+          _ColumnHeader('HORA', flex: 7),
+          _ColumnHeader('LUGAR', flex: 14),
+          _ColumnHeader('ESTADO', flex: 10),
+          _ColumnHeader('PRECIO', flex: 10),
+          _ColumnHeader('CONTACTO', flex: 14),
+          _ColumnHeader('UBICACIÓN', flex: 16),
+          _ColumnHeader('COMENTARIOS', flex: 18),
+          _ColumnHeader('ACCIONES', flex: 8, align: TextAlign.right),
         ]),
       );
 }
@@ -692,10 +786,16 @@ class _ColumnHeader extends StatelessWidget {
 
 class _TableRow extends StatefulWidget {
   const _TableRow(
-      {required this.concert, required this.onEdit, required this.onDelete});
+      {required this.concert,
+      required this.onEdit,
+      required this.onDelete,
+      required this.selected,
+      required this.onSelect});
   final Concert concert;
   final ValueChanged<Concert> onEdit;
   final ValueChanged<Concert> onDelete;
+  final bool selected;
+  final ValueChanged<Concert> onSelect;
   @override
   State<_TableRow> createState() => _TableRowState();
 }
@@ -706,84 +806,108 @@ class _TableRowState extends State<_TableRow> {
   Widget build(BuildContext context) => MouseRegion(
         onEnter: (_) => setState(() => _hovering = true),
         onExit: (_) => setState(() => _hovering = false),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          color: _hovering ? const Color(0xFFF9F8FF) : Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-          child: Row(children: [
-            Expanded(
-                flex: 12,
-                child: Text(
-                    DateFormat('d MMM y', 'es_ES').format(widget.concert.date),
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700))),
-            Expanded(
-                flex: 8,
-                child: Text(widget.concert.time,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF595560)))),
-            Expanded(
-                flex: 20,
-                child: Text(widget.concert.place,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700))),
-            Expanded(
-                flex: 13, child: _StatusChip(status: widget.concert.status)),
-            Expanded(
-                flex: 12,
-                child: Text(_price(widget.concert.price),
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700))),
-            Expanded(
-                flex: 25,
-                child: Tooltip(
-                    message: widget.concert.comments,
+        child: InkWell(
+            onTap: () => widget.onSelect(widget.concert),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              color: widget.selected
+                  ? const Color(0xFFF3F3F3)
+                  : (_hovering ? const Color(0xFFF9F9F9) : Colors.white),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              child: Row(children: [
+                Expanded(
+                    flex: 11,
                     child: Text(
-                        widget.concert.comments.isEmpty
-                            ? '—'
-                            : widget.concert.comments,
-                        maxLines: 1,
+                        DateFormat('d MMM y', 'es_ES')
+                            .format(widget.concert.date),
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700))),
+                Expanded(
+                    flex: 7,
+                    child: Text(widget.concert.time,
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF595560)))),
+                Expanded(
+                    flex: 14,
+                    child: Text(widget.concert.place,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF777482))))),
-            Expanded(
-                flex: 10,
-                child: Align(
-                    alignment: Alignment.centerRight,
-                    child: _ActionMenu(
-                        concert: widget.concert,
-                        onEdit: widget.onEdit,
-                        onDelete: widget.onDelete))),
-          ]),
-        ),
+                            fontSize: 13, fontWeight: FontWeight.w700))),
+                Expanded(
+                    flex: 10,
+                    child: _StatusChip(status: widget.concert.status)),
+                Expanded(
+                    flex: 10,
+                    child: Text(_price(widget.concert.price),
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700))),
+                Expanded(
+                    flex: 14, child: _ContactCell(concert: widget.concert)),
+                Expanded(
+                    flex: 16, child: _LocationCell(concert: widget.concert)),
+                Expanded(
+                    flex: 18,
+                    child: Tooltip(
+                        message: widget.concert.comments,
+                        child: Text(
+                            widget.concert.comments.isEmpty
+                                ? '—'
+                                : widget.concert.comments,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF777482))))),
+                Expanded(
+                    flex: 8,
+                    child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _ActionMenu(
+                            concert: widget.concert,
+                            onEdit: widget.onEdit,
+                            onDelete: widget.onDelete))),
+              ]),
+            )),
       );
 }
 
 class _ConcertCards extends StatelessWidget {
   const _ConcertCards(
-      {required this.concerts, required this.onEdit, required this.onDelete});
+      {required this.concerts,
+      required this.onEdit,
+      required this.onDelete,
+      required this.onSelect});
   final List<Concert> concerts;
   final ValueChanged<Concert> onEdit;
   final ValueChanged<Concert> onDelete;
+  final ValueChanged<Concert> onSelect;
   @override
   Widget build(BuildContext context) => Column(
       children: concerts
           .map((concert) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _ConcertCard(
-                  concert: concert, onEdit: onEdit, onDelete: onDelete)))
+                  concert: concert,
+                  onEdit: onEdit,
+                  onDelete: onDelete,
+                  onSelect: onSelect)))
           .toList());
 }
 
 class _ConcertCard extends StatelessWidget {
   const _ConcertCard(
-      {required this.concert, required this.onEdit, required this.onDelete});
+      {required this.concert,
+      required this.onEdit,
+      required this.onDelete,
+      required this.onSelect});
   final Concert concert;
   final ValueChanged<Concert> onEdit;
   final ValueChanged<Concert> onDelete;
+  final ValueChanged<Concert> onSelect;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => InkWell(
+      onTap: () => onSelect(concert),
+      borderRadius: BorderRadius.circular(17),
+      child: Container(
         padding: const EdgeInsets.fromLTRB(16, 15, 10, 15),
         decoration: BoxDecoration(
             color: Colors.white,
@@ -809,6 +933,33 @@ class _ConcertCard extends StatelessWidget {
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF595560))),
+                const SizedBox(height: 6),
+                _WebPublicationChip(concert: concert),
+                if (concert.hasContact)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                          [concert.contactPerson, concert.contactPhone]
+                              .where((value) => value.isNotEmpty)
+                              .join(' · '),
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF777482)))),
+                if (concert.address.isNotEmpty)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(concert.address,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF777482)))),
+                if (concert.hasLocation)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 7),
+                      child: OutlinedButton.icon(
+                          onPressed: () =>
+                              ConcertActions.openLocation(context, concert),
+                          icon: const Icon(Icons.map_outlined, size: 17),
+                          label: const Text('Abrir mapa'))),
                 if (concert.comments.isNotEmpty)
                   Padding(
                       padding: const EdgeInsets.only(top: 7),
@@ -820,7 +971,7 @@ class _ConcertCard extends StatelessWidget {
               ])),
           _ActionMenu(concert: concert, onEdit: onEdit, onDelete: onDelete),
         ]),
-      );
+      ));
 }
 
 class _DateBadge extends StatelessWidget {
@@ -849,6 +1000,89 @@ class _DateBadge extends StatelessWidget {
       ]));
 }
 
+class _WebPublicationChip extends StatelessWidget {
+  const _WebPublicationChip({required this.concert});
+  final Concert concert;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = !concert.isPublishedOnWeb
+        ? ('No publicado', AppColors.textSecondary)
+        : concert.hasUnpublishedChanges
+            ? ('Cambios sin publicar', AppColors.warningText)
+            : ('Publicado', AppColors.successText);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showWebPreview(BuildContext context, Concert concert) =>
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Vista previa web'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                DateFormat('d MMMM', 'es_ES')
+                    .format(concert.date)
+                    .toUpperCase(),
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '📍${concert.publicVenue.isEmpty ? concert.place : concert.publicVenue}'
+                '${concert.city.isEmpty ? '' : ', ${concert.city}'}'
+                ' — ${concert.publicTime.isEmpty ? concert.time : concert.publicTime}h',
+              ),
+              if (concert.ticketType != 'unavailable') ...[
+                const SizedBox(height: 12),
+                Text(
+                  switch (concert.ticketType) {
+                    'free' => 'ENTRADA GRATUITA',
+                    'ticketed' => 'COMPRAR ENTRADAS',
+                    'invitation' => concert.ticketLabel.isEmpty
+                        ? 'MÁS INFORMACIÓN'
+                        : concert.ticketLabel.toUpperCase(),
+                    'sold_out' => 'ENTRADAS AGOTADAS',
+                    _ => '',
+                  },
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+
 class _ActionMenu extends StatelessWidget {
   const _ActionMenu(
       {required this.concert, required this.onEdit, required this.onDelete});
@@ -860,11 +1094,33 @@ class _ActionMenu extends StatelessWidget {
         icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF777482)),
         tooltip: 'Acciones',
         onSelected: (value) {
-          if (value == 'edit') onEdit(concert);
-          if (value == 'delete') onDelete(concert);
+          if (value == 'edit') {
+            onEdit(concert);
+          }
+          if (value == 'delete') {
+            onDelete(concert);
+          }
+          if (value == 'phone') {
+            ConcertActions.copyPhone(context, concert.contactPhone);
+          }
+          if (value == 'map') {
+            ConcertActions.openLocation(context, concert);
+          }
+          if (value == 'manage_web') {
+            onEdit(concert);
+          }
+          if (value == 'preview_web') {
+            _showWebPreview(context, concert);
+          }
+          if (value == 'open_web') {
+            ConcertActions.openUrl(
+              context,
+              'https://vaderumba.es/#conciertos',
+            );
+          }
         },
-        itemBuilder: (context) => const [
-          PopupMenuItem(
+        itemBuilder: (context) => [
+          const PopupMenuItem(
               value: 'edit',
               child: Row(children: [
                 Icon(Icons.edit_outlined, size: 18),
@@ -872,15 +1128,111 @@ class _ActionMenu extends StatelessWidget {
                 Text('Ver o editar')
               ])),
           PopupMenuItem(
+              value: 'manage_web',
+              child: Row(children: [
+                const Icon(Icons.public_rounded, size: 18),
+                const SizedBox(width: 9),
+                Text(concert.isPublishedOnWeb
+                    ? 'Actualizar o retirar publicación'
+                    : 'Publicar en la web')
+              ])),
+          if (concert.isPublishedOnWeb) ...[
+            const PopupMenuItem(
+                value: 'preview_web',
+                child: Row(children: [
+                  Icon(Icons.preview_outlined, size: 18),
+                  SizedBox(width: 9),
+                  Text('Vista previa web')
+                ])),
+            const PopupMenuItem(
+                value: 'open_web',
+                child: Row(children: [
+                  Icon(Icons.open_in_new, size: 18),
+                  SizedBox(width: 9),
+                  Text('Abrir en la web')
+                ])),
+          ],
+          const PopupMenuItem(
               value: 'delete',
               child: Row(children: [
                 Icon(Icons.delete_outline_rounded,
                     size: 18, color: Color(0xFFBE4858)),
                 SizedBox(width: 9),
                 Text('Eliminar')
-              ]))
+              ])),
+          if (concert.contactPhone.isNotEmpty)
+            const PopupMenuItem(
+                value: 'phone',
+                child: Row(children: [
+                  Icon(Icons.content_copy_rounded, size: 18),
+                  SizedBox(width: 9),
+                  Text('Copiar teléfono')
+                ])),
+          if (concert.hasLocation)
+            const PopupMenuItem(
+                value: 'map',
+                child: Row(children: [
+                  Icon(Icons.map_outlined, size: 18),
+                  SizedBox(width: 9),
+                  Text('Abrir mapa')
+                ])),
         ],
       );
+}
+
+class _ContactCell extends StatelessWidget {
+  const _ContactCell({required this.concert});
+  final Concert concert;
+  @override
+  Widget build(BuildContext context) {
+    if (!concert.hasContact) {
+      return const Text('—', style: TextStyle(color: Color(0xFF777482)));
+    }
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (concert.contactPerson.isNotEmpty)
+            Text(concert.contactPerson,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          if (concert.contactPhone.isNotEmpty)
+            InkWell(
+                onTap: () =>
+                    ConcertActions.copyPhone(context, concert.contactPhone),
+                child: Text(concert.contactPhone,
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFF6255E7)))),
+        ]);
+  }
+}
+
+class _LocationCell extends StatelessWidget {
+  const _LocationCell({required this.concert});
+  final Concert concert;
+  @override
+  Widget build(BuildContext context) {
+    if (!concert.hasLocation) {
+      return const Text('—', style: TextStyle(color: Color(0xFF777482)));
+    }
+    return Row(children: [
+      Expanded(
+          child: Tooltip(
+              message: concert.address,
+              child: Text(
+                  concert.address.isEmpty ? 'Enlace de mapas' : concert.address,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, color: Color(0xFF595560))))),
+      IconButton(
+          tooltip: 'Abrir mapa',
+          onPressed: () => ConcertActions.openLocation(context, concert),
+          icon: const Icon(Icons.map_outlined, size: 18)),
+    ]);
+  }
 }
 
 class _StatusChip extends StatelessWidget {
@@ -891,6 +1243,7 @@ class _StatusChip extends StatelessWidget {
     final (label, color) = switch (status) {
       ConcertStatus.pending => ('Pendiente', const Color(0xFFE49B27)),
       ConcertStatus.confirmed => ('Confirmado', const Color(0xFF25A978)),
+      ConcertStatus.reserved => ('Reservado', const Color(0xFF4389C9)),
       ConcertStatus.cancelled => ('Cancelado', const Color(0xFFE05A68))
     };
     return Container(
@@ -906,16 +1259,18 @@ class _StatusChip extends StatelessWidget {
 
 class _EmptyList extends StatelessWidget {
   const _EmptyList({required this.onCreate});
-  final VoidCallback onCreate;
+  final VoidCallback? onCreate;
   @override
   Widget build(BuildContext context) => _EmptyPanel(
       icon: Icons.event_available_outlined,
       title: 'Todavía no hay conciertos',
       detail: 'Crea el primero para empezar a organizar la agenda.',
-      action: FilledButton.icon(
-          onPressed: onCreate,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Crear primer concierto')));
+      action: onCreate == null
+          ? null
+          : FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Crear primer concierto')));
 }
 
 class _NoResults extends StatelessWidget {
@@ -941,7 +1296,7 @@ class _EmptyPanel extends StatelessWidget {
   final IconData icon;
   final String title;
   final String detail;
-  final Widget action;
+  final Widget? action;
   @override
   Widget build(BuildContext context) => Container(
       width: double.infinity,
@@ -959,8 +1314,10 @@ class _EmptyPanel extends StatelessWidget {
         Text(detail,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, color: Color(0xFF777482))),
-        const SizedBox(height: 18),
-        action
+        if (action != null) ...[
+          const SizedBox(height: 18),
+          action!,
+        ],
       ]));
 }
 

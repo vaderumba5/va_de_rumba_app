@@ -1,1 +1,43 @@
-{"flutter":{"platforms":{"ios":{"default":{"projectId":"va-de-rumba","appId":"1:353945851143:ios:3f8494591bdba4666c21a2","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"va-de-rumba","configurations":{"web":"1:353945851143:web:7c27b29224e687476c21a2"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "ios": {
+        "default": {
+          "projectId": "va-de-rumba",
+          "appId": "1:353945851143:ios:3f8494591bdba4666c21a2",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "va-de-rumba",
+          "configurations": {
+            "web": "1:353945851143:web:7c27b29224e687476c21a2"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

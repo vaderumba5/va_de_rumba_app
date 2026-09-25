@@ -3,6 +3,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../models/concert.dart';
 import '../services/firestore_concert_repository.dart';
+import '../utils/concert_actions.dart';
 import 'concert_form_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -96,6 +97,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     switch (s) {
       case ConcertStatus.confirmed:
         return Colors.green;
+      case ConcertStatus.reserved:
+        return Colors.blue;
       case ConcertStatus.cancelled:
         return Colors.red;
       case ConcertStatus.pending:
@@ -107,6 +110,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     switch (s) {
       case ConcertStatus.confirmed:
         return 'Confirmado';
+      case ConcertStatus.reserved:
+        return 'Reservado';
       case ConcertStatus.cancelled:
         return 'Cancelado';
       case ConcertStatus.pending:
@@ -149,18 +154,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
               actions: [
                 Padding(
                   padding: const EdgeInsets.only(right: 16),
-                  child: FilledButton.icon(
+                  child: IconButton(
+                    tooltip: 'Nuevo concierto',
                     onPressed: _add,
                     icon: const Icon(Icons.add),
-                    label: const Text('Nuevo concierto'),
                   ),
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _add,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuevo concierto'),
+        tooltip: 'Nuevo concierto',
+        child: const Icon(Icons.add_rounded),
       ),
       body: Column(
         children: [
@@ -391,7 +396,35 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                         fontSize: 12,
                                                         color: Color(
                                                             0xFF777482)))),
+                                          if (c.hasContact)
+                                            Padding(
+                                                padding: const EdgeInsets.only(
+                                                    top: 5),
+                                                child: Text(
+                                                    [
+                                                      c.contactPerson,
+                                                      c.contactPhone
+                                                    ]
+                                                        .where((value) =>
+                                                            value.isNotEmpty)
+                                                        .join(' · '),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Color(
+                                                            0xFF777482)))),
                                         ])),
+                                    if (c.hasLocation)
+                                      IconButton(
+                                          tooltip: 'Abrir mapa',
+                                          onPressed: () =>
+                                              ConcertActions.openLocation(
+                                                  context, c),
+                                          icon: const Icon(Icons.map_outlined,
+                                              size: 19,
+                                              color: Color(0xFF6255E7))),
                                     PopupMenuButton<String>(
                                       icon: const Icon(Icons.more_horiz_rounded,
                                           color: Color(0xFF777482)),
