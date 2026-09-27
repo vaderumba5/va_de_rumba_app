@@ -4,7 +4,15 @@ import '../widgets/app_layout.dart';
 import '../widgets/side_menu.dart';
 import 'calendar_screen.dart';
 import 'concerts_screen.dart';
+import 'public_concerts_screen.dart';
 import 'dashboard_screen.dart';
+import 'settings_screen.dart';
+import 'fund_screen.dart';
+import 'documents_screen.dart';
+import 'repertoire_screen.dart';
+import 'admin/users_screen.dart';
+import '../models/app_permission.dart';
+import '../providers/current_user_scope.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,6 +26,28 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = CurrentUserScope.of(context);
+    const authorization = CurrentUserScope.authorization;
+    final allowed = AppSection.values
+        .where((section) => section == AppSection.webPublishing
+            ? authorization.canManageModule(user, AppModules.concerts)
+            : authorization.canViewModule(user, section.module))
+        .toList();
+    if (!allowed.contains(_section) && allowed.isNotEmpty) {
+      _section = allowed.first;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('No tienes permiso para acceder a este apartado.'),
+          ));
+        }
+      });
+    }
+    if (allowed.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('No tienes ningún módulo habilitado.')),
+      );
+    }
     final page = _pageFor(_section);
     return AppLayout(
       section: _section,
@@ -26,6 +56,7 @@ class _MainScreenState extends State<MainScreen> {
       },
       title: page.title,
       subtitle: page.subtitle,
+      allowedSections: allowed,
       child: page.child,
     );
   }
@@ -33,35 +64,55 @@ class _MainScreenState extends State<MainScreen> {
   _Page _pageFor(AppSection section) {
     switch (section) {
       case AppSection.dashboard:
-        return const _Page(
-            'Dashboard', 'Visión general de Va de Rumba', DashboardScreen());
+        return _Page(
+          'Inicio',
+          'Visión general de Va de Rumba',
+          DashboardScreen(
+            onOpenFund: () => setState(() => _section = AppSection.finances),
+          ),
+        );
       case AppSection.calendar:
         return const _Page('Calendario', 'Planificación de conciertos',
             CalendarScreen(embedded: true));
       case AppSection.concerts:
         return const _Page(
             'Conciertos', 'Agenda y gestión de actuaciones', ConcertsScreen());
-      case AppSection.clients:
-        return const _Page('Clientes', 'Próximamente',
-            _PlaceholderPage(icon: Icons.groups_outlined, title: 'Clientes'));
-      case AppSection.finances:
+      case AppSection.webPublishing:
         return const _Page(
-            'Economía',
-            'Próximamente',
-            _PlaceholderPage(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Economía'));
+          'Publicación web',
+          'Selecciona qué conciertos aparecen en vaderumba.es',
+          PublicConcertsScreen(),
+        );
+      case AppSection.repertoire:
+        return const _Page('Repertorio', 'Canciones y repertorios de directo',
+            RepertoireScreen());
+      case AppSection.finances:
+        return const _Page('Fondo', 'Cuenta común del grupo', FundScreen());
       case AppSection.documents:
         return const _Page(
-            'Documentos',
-            'Próximamente',
-            _PlaceholderPage(
-                icon: Icons.description_outlined, title: 'Documentos'));
+            'Documentación', 'Archivos del grupo', DocumentsScreen());
       case AppSection.settings:
-        return const _Page('Ajustes', 'Configuración de la aplicación',
-            _PlaceholderPage(icon: Icons.settings_outlined, title: 'Ajustes'));
+        return const _Page(
+            'Ajustes', 'Perfil, seguridad y sesión', SettingsScreen());
+      case AppSection.users:
+        return const _Page(
+            'Administración', 'Usuarios y permisos', UsersScreen());
     }
   }
+}
+
+extension on AppSection {
+  String get module => switch (this) {
+        AppSection.dashboard => AppModules.dashboard,
+        AppSection.calendar => AppModules.calendar,
+        AppSection.concerts => AppModules.concerts,
+        AppSection.webPublishing => AppModules.concerts,
+        AppSection.repertoire => AppModules.repertoire,
+        AppSection.finances => AppModules.fund,
+        AppSection.documents => AppModules.documents,
+        AppSection.settings => AppModules.settings,
+        AppSection.users => AppModules.users,
+      };
 }
 
 class _Page {
@@ -69,19 +120,4 @@ class _Page {
   final String title;
   final String subtitle;
   final Widget child;
-}
-
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.icon, required this.title});
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 42, color: const Color(0xFF918B98)),
-        const SizedBox(height: 14),
-        Text('$title estará disponible próximamente',
-            style: const TextStyle(fontSize: 16, color: Color(0xFF69636E))),
-      ]));
 }

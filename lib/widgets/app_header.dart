@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'user_avatar.dart';
+import '../core/app_theme.dart';
+
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   const AppHeader({
     super.key,
@@ -7,6 +10,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.subtitle,
     this.onMenuPressed,
     this.action,
+    this.onNotificationsPressed,
   });
 
   final String title;
@@ -14,28 +18,46 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onMenuPressed;
   final Widget? action;
 
+  /// Reserved for the future notifications module. Without a callback, the
+  /// control is intentionally absent.
+  final VoidCallback? onNotificationsPressed;
+
   @override
   Size get preferredSize => const Size.fromHeight(82);
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFFCFCFE),
+      color: AppColors.topBarBackground,
       child: SafeArea(
         bottom: false,
         child: Container(
           height: preferredSize.height,
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: EdgeInsets.only(
+            left: onMenuPressed == null ? 32 : 12,
+            right: 16,
+          ),
           decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE9E8F0)))),
+              border: Border(bottom: BorderSide(color: AppColors.border))),
           child: LayoutBuilder(builder: (context, constraints) {
             final showSearch = constraints.maxWidth >= 760;
             return Row(
               children: [
                 if (onMenuPressed != null) ...[
-                  IconButton.filledTonal(
-                      onPressed: onMenuPressed,
-                      icon: const Icon(Icons.menu_rounded, size: 21)),
+                  IconButton(
+                    tooltip: 'Abrir menú',
+                    onPressed: onMenuPressed,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.zero,
+                      shape: const RoundedRectangleBorder(),
+                    ).copyWith(
+                      overlayColor:
+                          const WidgetStatePropertyAll(Color(0x14000000)),
+                    ),
+                    icon: const Icon(Icons.menu, color: Colors.black, size: 21),
+                  ),
                   const SizedBox(width: 8),
                 ],
                 Expanded(
@@ -47,11 +69,11 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                           style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF29252E))),
+                              color: AppColors.textPrimary)),
                       const SizedBox(height: 2),
                       Text(subtitle,
                           style: const TextStyle(
-                              fontSize: 13, color: Color(0xFF77727D))),
+                              fontSize: 13, color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
@@ -60,28 +82,16 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                   const SizedBox(width: 260, child: _SearchField()),
                 ],
                 const SizedBox(width: 12),
-                IconButton(
-                  tooltip: 'Notificaciones',
-                  onPressed: () {},
-                  icon: const Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Icon(Icons.notifications_none_rounded,
-                          color: Color(0xFF575360)),
-                      Positioned(
-                          right: 0,
-                          top: 0,
-                          child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                  color: Color(0xFF6255E7),
-                                  shape: BoxShape.circle),
-                              child: SizedBox(width: 7, height: 7))),
-                    ],
+                if (onNotificationsPressed != null)
+                  IconButton(
+                    tooltip: 'Notificaciones',
+                    onPressed: onNotificationsPressed,
+                    icon: const Icon(Icons.notifications_none_rounded,
+                        color: AppColors.textPrimary),
                   ),
-                ),
                 if (action != null) action!,
                 const SizedBox(width: 14),
-                const _HeaderAvatar(),
+                const UserAvatar(),
               ],
             );
           }),
@@ -89,34 +99,6 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
-}
-
-class _HeaderAvatar extends StatelessWidget {
-  const _HeaderAvatar();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-              colors: [Color(0xFF9288FF), Color(0xFF5E52DC)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x335E52DC), blurRadius: 10, offset: Offset(0, 4))
-          ],
-        ),
-        child: const Center(
-          child: Text('VR',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
-        ),
-      );
 }
 
 class _SearchField extends StatelessWidget {
@@ -128,16 +110,17 @@ class _SearchField extends StatelessWidget {
         child: TextField(
           decoration: InputDecoration(
             hintText: 'Buscar…',
-            hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9A96A2)),
+            hintStyle:
+                const TextStyle(fontSize: 13, color: AppColors.textMuted),
             prefixIcon: const Icon(Icons.search_rounded, size: 20),
             contentPadding: EdgeInsets.zero,
-            fillColor: const Color(0xFFF6F5F9),
+            fillColor: AppColors.surfaceSoft,
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(11),
-                borderSide: const BorderSide(color: Color(0xFFE9E8F0))),
+                borderSide: const BorderSide(color: AppColors.border)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(11),
-                borderSide: const BorderSide(color: Color(0xFF6255E7))),
+                borderSide: const BorderSide(color: AppColors.primary)),
           ),
         ),
       );

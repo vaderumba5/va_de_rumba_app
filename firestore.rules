@@ -1,0 +1,154 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner() {
+      // Auth emails are canonicalized by Firebase Authentication.
+      return signedIn()
+        && request.auth.token.email == "grupovaderumba@gmail.com";
+    }
+
+    function profileExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function active() {
+      return owner() || (profileExists()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive != false);
+    }
+
+    function permission(moduleName) {
+      return owner()
+        ? "manage"
+        : get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.permissions[moduleName];
+    }
+
+    function canView(moduleName) {
+      return active()
+        && (owner() || permission(moduleName) in ["view", "manage"]);
+    }
+
+    function canManage(moduleName) {
+      return active() && (owner() || permission(moduleName) == "manage");
+    }
+
+    function targetIsOwner() {
+      return resource.data.email == "grupovaderumba@gmail.com";
+    }
+
+    function validPublicConcert() {
+      return request.resource.data.keys().hasOnly([
+          "concertId", "title", "date", "time", "venue", "city",
+          "province", "publicLocation", "mapsUrl", "ticketType",
+          "ticketUrl", "ticketLabel", "publicDescription", "posterUrl",
+          "featured", "status", "publishedAt", "updatedAt"
+        ])
+        && request.resource.data.concertId is string
+        && request.resource.data.title is string
+        && request.resource.data.date is timestamp
+        && request.resource.data.time is string
+        && request.resource.data.venue is string
+        && request.resource.data.city is string
+        && request.resource.data.province is string
+        && request.resource.data.publicLocation is string
+        && request.resource.data.mapsUrl is string
+        && request.resource.data.ticketType
+          in ["free", "ticketed", "invitation", "sold_out", "unavailable"]
+        && request.resource.data.ticketUrl is string
+        && request.resource.data.ticketLabel is string
+        && request.resource.data.publicDescription is string
+        && request.resource.data.posterUrl is string
+        && request.resource.data.featured is bool
+        && request.resource.data.status
+          in ["scheduled", "cancelled", "postponed"]
+        && request.resource.data.publishedAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    match /concerts/{concertId} {
+      allow read: if canView("concerts") || canView("calendar");
+      allow create, update, delete: if canManage("concerts");
+    }
+
+    match /public_concerts/{concertId} {
+      allow read: if true;
+      allow create, update: if canManage("concerts")
+        && validPublicConcert()
+        && request.resource.data.concertId == concertId;
+      allow delete: if canManage("concerts");
+    }
+
+    match /songs/{songId} {
+      allow read: if canView("repertoire");
+      allow create, update, delete: if canManage("repertoire");
+    }
+
+    match /setlists/{setlistId} {
+      allow read: if canView("repertoire");
+      allow create, update, delete: if canManage("repertoire");
+    }
+
+    match /users/{userId} {
+      allow read: if active()
+        && (request.auth.uid == userId || canView("users"));
+      allow create: if owner()
+        || (request.auth.uid == userId
+          && request.resource.data.role == "member"
+          && request.resource.data.isActive == true
+          && request.resource.data.permissions == {});
+      allow update: if (
+          request.auth.uid == userId
+          && active()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["photoUrl", "photoVersion", "updatedAt"])
+        ) || (
+          canManage("users")
+          && !targetIsOwner()
+          && request.auth.uid != userId
+        );
+      allow delete: if canManage("users") && !targetIsOwner();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if canView("users");
+      allow create: if signedIn()
+        && request.resource.data.performedBy == request.auth.uid
+        && (
+          canManage("users")
+          || (canManage("concerts")
+            && request.resource.data.action in [
+              "concert_published",
+              "public_concert_updated",
+              "concert_unpublished"
+            ])
+        );
+      allow update, delete: if false;
+    }
+
+    match /group_documents/{documentId} {
+      allow read: if canView("documents");
+      allow create, update, delete: if canManage("documents");
+    }
+
+    match /group_finances/{fundId} {
+      allow read: if canView("fund");
+      allow create, update, delete: if canManage("fund");
+
+      match /movements/{movementId} {
+        allow read: if canView("fund");
+        allow create, update, delete: if canManage("fund");
+      }
+
+      match /rehearsal_room_payments/{paymentId} {
+        allow read: if canView("fund");
+        allow create, update, delete: if canManage("fund");
+      }
+    }
+  }
+}
