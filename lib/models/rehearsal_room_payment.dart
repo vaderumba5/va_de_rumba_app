@@ -8,6 +8,8 @@ class RehearsalRoomPayment {
     required this.isPaid,
     required this.movementId,
     required this.createdBy,
+    this.createdByName,
+    this.paymentDate,
     this.paidAt,
   });
 
@@ -18,6 +20,8 @@ class RehearsalRoomPayment {
   final DateTime? paidAt;
   final String movementId;
   final String? createdBy;
+  final String? createdByName;
+  final DateTime? paymentDate;
 
   String get id => '${year}_${month.toString().padLeft(2, '0')}';
 
@@ -31,6 +35,8 @@ class RehearsalRoomPayment {
       paidAt: (map['paidAt'] as Timestamp?)?.toDate(),
       movementId: map['movementId'] as String? ?? '',
       createdBy: map['createdBy'] as String?,
+      createdByName: map['paidByName'] as String?,
+      paymentDate: (map['paymentDate'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -41,5 +47,8 @@ class RehearsalRoomPayment {
         'status': isPaid ? 'paid' : 'pending',
         'movementId': movementId,
         'createdBy': createdBy,
+        'paidByName': createdByName,
+        if (paymentDate != null)
+          'paymentDate': Timestamp.fromDate(paymentDate!),
       };
 }

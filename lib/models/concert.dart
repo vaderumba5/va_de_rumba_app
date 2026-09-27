@@ -8,6 +8,11 @@ class Concert {
   final String time;
   final String place;
   final double? price;
+  final double fundContribution;
+  final double associatedExpenses;
+  final int? splitMemberCount;
+  final String paymentStatus;
+  final String distributionStatus;
   final String comments;
   final ConcertStatus status;
   final String contactPerson;
@@ -49,6 +54,11 @@ class Concert {
     required this.time,
     required this.place,
     this.price,
+    this.fundContribution = 50,
+    this.associatedExpenses = 0,
+    this.splitMemberCount,
+    this.paymentStatus = 'pending',
+    this.distributionStatus = 'estimated',
     this.comments = '',
     this.status = ConcertStatus.pending,
     this.contactPerson = '',
@@ -90,6 +100,11 @@ class Concert {
     String? time,
     String? place,
     double? price,
+    double? fundContribution,
+    double? associatedExpenses,
+    int? splitMemberCount,
+    String? paymentStatus,
+    String? distributionStatus,
     String? comments,
     ConcertStatus? status,
     String? contactPerson,
@@ -131,6 +146,11 @@ class Concert {
         time: time ?? this.time,
         place: place ?? this.place,
         price: price ?? this.price,
+        fundContribution: fundContribution ?? this.fundContribution,
+        associatedExpenses: associatedExpenses ?? this.associatedExpenses,
+        splitMemberCount: splitMemberCount ?? this.splitMemberCount,
+        paymentStatus: paymentStatus ?? this.paymentStatus,
+        distributionStatus: distributionStatus ?? this.distributionStatus,
         comments: comments ?? this.comments,
         status: status ?? this.status,
         contactPerson: contactPerson ?? this.contactPerson,
@@ -173,6 +193,11 @@ class Concert {
         'time': time,
         'place': place,
         'price': price,
+        'fundContribution': fundContribution,
+        'associatedExpenses': associatedExpenses,
+        if (splitMemberCount != null) 'splitMemberCount': splitMemberCount,
+        'paymentStatus': paymentStatus,
+        'distributionStatus': distributionStatus,
         'comments': comments,
         'status': status.name,
         'contactPerson': contactPerson,
@@ -244,6 +269,11 @@ class Concert {
         time: j['time'] ?? '',
         place: j['place'] ?? '',
         price: j['price'] == null ? null : (j['price'] as num).toDouble(),
+        fundContribution: (j['fundContribution'] as num?)?.toDouble() ?? 50,
+        associatedExpenses: (j['associatedExpenses'] as num?)?.toDouble() ?? 0,
+        splitMemberCount: (j['splitMemberCount'] as num?)?.toInt(),
+        paymentStatus: j['paymentStatus'] as String? ?? 'pending',
+        distributionStatus: j['distributionStatus'] as String? ?? 'estimated',
         comments: j['comments'] ?? '',
         status: ConcertStatus.values.firstWhere(
           (s) => s.name == j['status'],

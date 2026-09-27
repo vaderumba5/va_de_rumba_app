@@ -13,18 +13,18 @@ class FirestoreConcertRepository {
 
   final _uuid = const Uuid();
 
-  Future<List<Concert>> getAll() async {
-    final snapshot = await _concerts.get();
-
-    debugPrint(
-        '[FirestoreConcertRepository] Documentos: ${snapshot.docs.length}');
-
-    for (final doc in snapshot.docs) {
-      debugPrint('[FirestoreConcertRepository] ${doc.data()}');
-    }
+  Future<List<Concert>> getAll({Source source = Source.serverAndCache}) async {
+    final snapshot = await _concerts.get(GetOptions(source: source));
 
     return snapshot.docs.map((doc) => Concert.fromJson(doc.data())).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  Future<void> refresh({bool includePublic = false}) async {
+    await _concerts.get(const GetOptions(source: Source.server));
+    if (includePublic) {
+      await _publicConcerts.get(const GetOptions(source: Source.server));
+    }
   }
 
   Future<void> saveAll(List<Concert> concerts) async {
